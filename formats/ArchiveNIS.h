@@ -15,4 +15,10 @@ namespace ArchiveNISPack
 	bool load(FileChunk&);
 }
 
+namespace ArchiveDSARC
+{
+	bool test(FileChunk&);
+	bool load(FileChunk&);
+}
+
 #endif // ARCHIVENIS_H

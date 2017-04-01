@@ -17,6 +17,7 @@ static QVector<FormatSpec> formats =
 	// Archive formats
 	FormatSpec("PSPFS archive", FormatSpec::Archive, ArchivePSPFS::test, ArchivePSPFS::load),
 	FormatSpec("NISPack archive", FormatSpec::Archive, ArchiveNISPack::test, ArchiveNISPack::load),
+	FormatSpec("DSARC archive", FormatSpec::Archive, ArchiveDSARC::test, ArchiveDSARC::load),
 
 	// Image formats
 	// TODO

@@ -1,79 +1,126 @@
 #include "formats/ArchiveNIS.h"
 #include <cstring>
 
+#define packed __attribute__((__packed__))
+
+//-----------------------------------------------------------------------------
+template<size_t size>
+static bool testNISHeader(FileChunk &chunk, const char (&magic)[size])
+{
+	qint64 insize = size - 1;
+
+	char buf[insize];
+	chunk.reset();
+	int read = chunk.read(buf, insize);
+
+	return read == insize && !std::memcmp(buf, magic, insize);
+}
+
+//-----------------------------------------------------------------------------
+template<class headerType, class fileType>
+static bool loadNISArchive(FileChunk &chunk)
+{
+	headerType header;
+
+	chunk.reset();
+	chunk.read(reinterpret_cast<char*>(&header), sizeof(header));
+	uint numFiles = qFromLittleEndian(header.numFiles);
+
+	for (uint i = 0; i < numFiles; i++)
+	{
+		fileType file;
+		quint64 size, offset;
+
+		chunk.read(reinterpret_cast<char*>(&file), sizeof(file));
+		file.name[sizeof(file.name) - 1] = '\0';
+
+		size = qFromLittleEndian(file.size);
+		offset = qFromLittleEndian(file.offset);
+
+		if (!chunk.makeChunk(file.name, offset, size))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 //-----------------------------------------------------------------------------
 bool ArchivePSPFS::test(FileChunk &chunk)
 {
-	char magic[8];
-	chunk.reset();
-	int size = chunk.read(magic, sizeof(magic));
-
-	return size == sizeof(magic)
-		   && !std::memcmp(magic, "PSPFS_V1", sizeof(magic));
+	return testNISHeader(chunk, "PSPFS_V1");
 }
 
 //-----------------------------------------------------------------------------
 bool ArchivePSPFS::load(FileChunk &chunk)
 {
-	chunk.seek(8);
-	auto numFiles = chunk.readLE<quint32>();
-
-	chunk.seek(16);
-	for (uint i = 0; i < numFiles; i++)
+	struct packed PSPFSHeader
 	{
-		char name[44];
-		quint32 size, offset;
+		char    magic[8];
+		quint32 numFiles;
+		quint32 dummy;
+	};
 
-		chunk.read(name, sizeof(name));
-		name[sizeof(name) - 1] = '\0';
+	struct packed PSPFSFile
+	{
+		char    name[44];
+		quint32 size;
+		quint32 offset;
+	};
 
-		size = chunk.readLE<quint32>();
-		offset = chunk.readLE<quint32>();
-
-		if (!chunk.makeChunk(name, offset, size))
-		{
-			return false;
-		}
-	}
-
-	return true;
+	return loadNISArchive<PSPFSHeader, PSPFSFile>(chunk);
 }
 
 //-----------------------------------------------------------------------------
 bool ArchiveNISPack::test(FileChunk &chunk)
 {
-	char magic[8];
-	chunk.reset();
-	int size = chunk.read(magic, sizeof(magic));
-
-	return size == sizeof(magic)
-		   && !std::memcmp(magic, "NISPACK\x00", sizeof(magic));
+	return testNISHeader(chunk, "NISPACK\x00");
 }
 
 //-----------------------------------------------------------------------------
 bool ArchiveNISPack::load(FileChunk &chunk)
 {
-	chunk.seek(12);
-	auto numFiles = chunk.readLE<quint32>();
-
-	for (uint i = 0; i < numFiles; i++)
+	struct packed NISPackHeader
 	{
-		char name[32];
-		quint32 size, offset;
+		char    magic[8];
+		quint32 dummy;
+		quint32 numFiles;
+	};
 
-		chunk.read(name, sizeof(name));
-		name[sizeof(name) - 1] = '\0';
+	struct packed NISPackFile
+	{
+		char    name[32];
+		quint32 offset;
+		quint32 size;
+		quint32 dummy;
+	};
 
-		offset = chunk.readLE<quint32>();
-		size = chunk.readLE<quint32>();
-		// dummy
-		chunk.readLE<quint32>();
+	return loadNISArchive<NISPackHeader, NISPackFile>(chunk);
+}
 
-		if (!chunk.makeChunk(name, offset, size))
-		{
-			return false;
-		}
-	}
+//-----------------------------------------------------------------------------
+bool ArchiveDSARC::test(FileChunk &chunk)
+{
+	return testNISHeader(chunk, "DSARC FL");
+}
 
-	return true;
+//-----------------------------------------------------------------------------
+bool ArchiveDSARC::load(FileChunk &chunk)
+{
+	struct packed DSARCHeader
+	{
+		char    magic[8];
+		quint32 numFiles;
+		quint32 dummy;
+	};
+
+	struct packed DSARCFile
+	{
+		char    name[40];
+		quint32 size;
+		quint32 offset;
+	};
+
+	return loadNISArchive<DSARCHeader, DSARCFile>(chunk);
 }
