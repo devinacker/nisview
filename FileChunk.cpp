@@ -1,6 +1,10 @@
 #include "FileChunk.h"
 #include "FormatSpec.h"
 
+#include <cstring>
+
+#include <qdebug.h>
+
 //-----------------------------------------------------------------------------
 FileChunk::FileChunk(QIODevice *parent, const QString& name, qint64 offset, qint64 size)
 	: QIODevice(parent)
@@ -8,12 +12,28 @@ FileChunk::FileChunk(QIODevice *parent, const QString& name, qint64 offset, qint
 	, m_pParent(parent)
 	, m_offset(offset)
 	, m_size(size)
-	, m_pos(parent->pos() - offset)
 {
 	if (size < 0)
 	{
 		m_size = parent->size() - offset;
 	}
+
+	qDebug() << this->fullPath();
+
+	loadChunks();
+}
+
+//-----------------------------------------------------------------------------
+FileChunk::FileChunk(QIODevice *parent, const QString& name, const QByteArray& data)
+	: QIODevice(parent)
+	, m_name(name)
+	, m_pParent(parent)
+	, m_offset(0)
+	, m_size(data.size())
+{
+	this->setValue(data);
+
+	qDebug() << this->fullPath();
 
 	loadChunks();
 }
@@ -37,13 +57,18 @@ void FileChunk::loadChunks()
 //-----------------------------------------------------------------------------
 void FileChunk::clearChunks()
 {
+	for (FileChunk *chunk : m_children)
+	{
+		delete chunk;
+	}
+
 	m_children.clear();
 }
 
 //-----------------------------------------------------------------------------
 bool FileChunk::makeChunk(const QString &name, qint64 offset, qint64 size)
 {
-	if (offset + size <= m_size)
+	if (offset + size <= this->size())
 	{
 		m_children.append(new FileChunk(this, name, offset, size));
 
@@ -51,6 +76,13 @@ bool FileChunk::makeChunk(const QString &name, qint64 offset, qint64 size)
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+bool FileChunk::makeChunk(const QString& name, const QByteArray &data)
+{
+	m_children.append(new FileChunk(this, name, data));
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -103,26 +135,40 @@ QString FileChunk::fullPath() const
 //-----------------------------------------------------------------------------
 qint64 FileChunk::readData(char *data, qint64 maxlen)
 {
-	if (m_pos < 0 || m_pos >= m_size)
+	qint64 read;
+	qint64 pos = this->pos();
+
+	maxlen = qMin(maxlen, this->size() - pos);
+	if (pos < 0 || maxlen < 0)
 		return -1;
 
-	m_pParent->seek(m_offset + m_pos);
-	qint64 read = m_pParent->read(data, qMin(maxlen, m_size - m_pos));
+	if (m_value.type() == QVariant::ByteArray)
+	{
+		// reading from decompressed data
+		std::memcpy(data, m_value.toByteArray().constData() + pos, maxlen);
+		read = maxlen;
+	}
+	else
+	{
+		// reading from parent file
+		m_pParent->seek(m_offset + pos);
+		read = m_pParent->read(data, maxlen);
+	}
 
-	m_pos = this->pos();
 	return read;
 }
 
 //-----------------------------------------------------------------------------
 qint64 FileChunk::readLineData(char *data, qint64 maxlen)
 {
-	if (m_pos < 0 || m_pos >= m_size)
+	qint64 pos = this->pos();
+
+	if (pos < 0 || pos >= this->size())
 		return -1;
 
-	m_pParent->seek(m_offset + m_pos);
-	qint64 read = m_pParent->readLine(data, qMin(maxlen, m_size - m_pos));
+	m_pParent->seek(m_offset + pos);
+	qint64 read = m_pParent->readLine(data, qMin(maxlen, this->size() - pos));
 
-	m_pos = this->pos();
 	return read;
 }
 

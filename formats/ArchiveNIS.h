@@ -18,15 +18,14 @@ namespace ArchiveDSARC
 	bool load(FileChunk&);
 }
 
-namespace ArchiveNISPS2
+namespace NISArchivePS2
 {
 	bool load(FileChunk&);
 }
 
-namespace ArchiveLZS
+namespace NISArchiveGeneric
 {
 	bool load(FileChunk&);
-	bool loadRaw(FileChunk&);
 }
 
 #endif // ARCHIVENIS_H

@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include <QDir>
-#include <qdebug.h>
 
 #define packed __attribute__((__packed__))
 
@@ -115,7 +114,7 @@ bool ArchiveDSARC::load(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool ArchiveNISPS2::load(FileChunk &chunk)
+bool NISArchivePS2::load(FileChunk &chunk)
 {
 	// Load a Disgaea 1/2/etc. PS2 archive (DATA.DAT + SECTOR.H)
 	// Assumes that DATA.DAT is not inside another archive (which it should never be)
@@ -159,23 +158,57 @@ bool ArchiveNISPS2::load(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool ArchiveLZS::load(FileChunk &)
+bool NISArchiveGeneric::load(FileChunk &chunk)
 {
-	// https://disgaea.rustedlogic.net/LZS_format
-
-	struct packed LZSHeader
+	struct packed LZSRawHeader
 	{
-		char     magic[4];
-		uint32le packedSize;
-		uint32le unpackedSize;
-		uint32le marker;
+		uint32le numFiles;
+		uint32le dummy[3];
 	} header;
 
-	return false;
-}
+	struct packed LZSRawFile
+	{
+		uint32le endOffset;
+		char     name[28];
+	} file;
 
-//-----------------------------------------------------------------------------
-bool ArchiveLZS::loadRaw(FileChunk &)
-{
-	return false;
+	chunk.readStruct(&header);
+	// enforce a reasonable(?) limit on number of files to avoid false positives
+	if (header.numFiles == 0 || header.numFiles >= 1<<16
+			|| header.dummy[0] || header.dummy[1] || header.dummy[2])
+	{
+		return false;
+	}
+
+	uint startOffset = sizeof(header) + header.numFiles * sizeof(file);
+	uint lastOffset = 0;
+	for (uint i = 0; i < header.numFiles; i++)
+	{
+		chunk.readStruct(&file);
+		file.name[sizeof(file.name) - 1] = '\0';
+
+		// validate file name (ASCII only)
+		for (uint j = 0; j < sizeof(file.name); j++)
+		{
+			char c = file.name[j];
+			if ((c > 0 && c < 0x20) || c > 0x7e)
+			{
+				return false;
+			}
+		}
+
+		if (file.endOffset < lastOffset || file.endOffset + startOffset > chunk.size())
+		{
+			return false;
+		}
+
+		uint size = file.endOffset - lastOffset;
+		if (!chunk.makeChunk(file.name, lastOffset + startOffset, size))
+		{
+			return false;
+		}
+		lastOffset = file.endOffset;
+	}
+
+	return true;
 }

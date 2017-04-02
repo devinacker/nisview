@@ -23,6 +23,9 @@ public:
 
 private slots:
 	void openArchive();
+	void saveChunkToFile();
+
+	void chunkContextMenu(const QPoint&);
 
 private:
 	Ui::MainWindow *ui;

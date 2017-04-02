@@ -16,7 +16,11 @@ public:
 	FileChunk(QObject * parent) = delete;
 
 	FileChunk(QIODevice *parent, const QString& name, qint64 offset = 0, qint64 size = -1);
-	~FileChunk() {}
+	FileChunk(QIODevice *parent, const QString& name, const QByteArray& data);
+	~FileChunk()
+	{
+		clearChunks();
+	}
 
 	bool open(OpenMode) { return false; }
 	void close() {}
@@ -25,6 +29,7 @@ public:
 	void clearChunks();
 
 	bool makeChunk(const QString& name, qint64 offset, qint64 size = -1);
+	bool makeChunk(const QString& name, const QByteArray &data);
 
 	FileChunk* parentChunk() const
 	{
@@ -80,6 +85,13 @@ public:
 		return true;
 	}
 
+	quint8 readByte()
+	{
+		quint8 value;
+		read(reinterpret_cast<char*>(&value), 1);
+		return value;
+	}
+
 	template<class T>
 	qint64 readStruct(T* data)
 	{
@@ -105,16 +117,6 @@ public:
 	/*
 	 * Reimplementation of QIODevice public methods
 	 */
-	bool atEnd() const
-	{
-		return m_pos >= m_size || m_pParent->bytesAvailable();
-	}
-
-	qint64 bytesAvailable() const
-	{
-		return qMax(0ll, qMin(m_size - m_pos, m_pParent->bytesAvailable()));
-	}
-
 	qint64 bytesToWrite() const
 	{
 		return 0;
@@ -122,33 +124,18 @@ public:
 
 	bool canReadLine() const
 	{
-		return m_size < m_offset && m_pParent->canReadLine();
-	}
-
-	qint64 pos() const
-	{
-		return m_pParent->pos() - m_offset;
-	}
-
-	bool reset()
-	{
-		return seek(0);
-	}
-
-	bool seek(qint64 pos)
-	{
-		if (m_pParent->seek(pos + m_offset))
-		{
-			m_pos = pos;
-			return true;
-		}
-
-		m_pos = this->pos();
-		return false;
+		return size() < m_offset && m_pParent->canReadLine();
 	}
 
 	qint64 size() const
 	{
+		if (m_value.type() == QVariant::ByteArray)
+		{
+			// reading from decompressed data
+			return m_value.toByteArray().size();
+		}
+
+		// reading from parent file
 		return qMin(m_size, m_pParent->size());
 	}
 
@@ -172,7 +159,6 @@ private:
 	QIODevice *m_pParent;
 	qint64 m_offset;
 	qint64 m_size;
-	qint64 m_pos;
 };
 
 #endif // FILECHUNK_H
