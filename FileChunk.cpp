@@ -23,8 +23,6 @@ void FileChunk::loadChunks()
 {
 	if (m_pParent->isOpen())
 	{
-		clearChunks();
-
 		// allow underlying QFile etc. device to handle buffering (for now)
 		// so that seeking and reading w/ this instance works as expected
 		QIODevice::open(ReadOnly | Unbuffered);
@@ -32,7 +30,6 @@ void FileChunk::loadChunks()
 		qint64 oldpos = m_pParent->pos();
 		m_pFormat = FormatSpec::match(*this);
 		m_type = m_pFormat->m_name;
-		m_pFormat->load(*this);
 		m_pParent->seek(oldpos);
 	}
 }
@@ -40,9 +37,6 @@ void FileChunk::loadChunks()
 //-----------------------------------------------------------------------------
 void FileChunk::clearChunks()
 {
-	// signal recursively clears child chunks
-	QIODevice::close();
-
 	m_children.clear();
 }
 
@@ -90,6 +84,20 @@ FileChunk* FileChunk::getChunk(int index) const
 	}
 
 	return 0;
+}
+
+//-----------------------------------------------------------------------------
+QString FileChunk::fullPath() const
+{
+	QString path;
+	QString parentClass = m_pParent->metaObject()->className();
+
+	if (parentClass == "FileChunk")
+	{
+		path = qobject_cast<FileChunk*>(m_pParent)->fullPath() + "/";
+	}
+
+	return path + m_name;
 }
 
 //-----------------------------------------------------------------------------

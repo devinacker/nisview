@@ -1,43 +1,24 @@
 #include "formats/ArchiveNIS.h"
+#include "Endianness.h"
 #include <cstring>
+
+#include <QDir>
+#include <qdebug.h>
 
 #define packed __attribute__((__packed__))
 
 //-----------------------------------------------------------------------------
-template<size_t size>
-static bool testNISHeader(FileChunk &chunk, const char (&magic)[size])
+template<class fileType>
+static bool loadNISArchive(FileChunk &chunk, uint numFiles)
 {
-	qint64 insize = size - 1;
-
-	char buf[insize];
-	chunk.reset();
-	int read = chunk.read(buf, insize);
-
-	return read == insize && !std::memcmp(buf, magic, insize);
-}
-
-//-----------------------------------------------------------------------------
-template<class headerType, class fileType>
-static bool loadNISArchive(FileChunk &chunk)
-{
-	headerType header;
-
-	chunk.reset();
-	chunk.read(reinterpret_cast<char*>(&header), sizeof(header));
-	uint numFiles = qFromLittleEndian(header.numFiles);
-
 	for (uint i = 0; i < numFiles; i++)
 	{
 		fileType file;
-		quint64 size, offset;
 
 		chunk.read(reinterpret_cast<char*>(&file), sizeof(file));
 		file.name[sizeof(file.name) - 1] = '\0';
 
-		size = qFromLittleEndian(file.size);
-		offset = qFromLittleEndian(file.offset);
-
-		if (!chunk.makeChunk(file.name, offset, size))
+		if (!chunk.makeChunk(file.name, file.offset, file.size))
 		{
 			return false;
 		}
@@ -47,35 +28,29 @@ static bool loadNISArchive(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool ArchivePSPFS::test(FileChunk &chunk)
-{
-	return testNISHeader(chunk, "PSPFS_V1");
-}
-
-//-----------------------------------------------------------------------------
 bool ArchivePSPFS::load(FileChunk &chunk)
 {
 	struct packed PSPFSHeader
 	{
-		char    magic[8];
-		quint32 numFiles;
-		quint32 dummy;
-	};
+		char     magic[8];
+		uint32le numFiles;
+		uint32le dummy;
+	} header;
 
 	struct packed PSPFSFile
 	{
-		char    name[44];
-		quint32 size;
-		quint32 offset;
+		char     name[44];
+		uint32le size;
+		uint32le offset;
 	};
 
-	return loadNISArchive<PSPFSHeader, PSPFSFile>(chunk);
-}
+	chunk.readStruct(&header);
+	if (!std::memcmp(header.magic, "PSPFS_V1", 8))
+	{
+		return loadNISArchive<PSPFSFile>(chunk, header.numFiles);
+	}
 
-//-----------------------------------------------------------------------------
-bool ArchiveNISPack::test(FileChunk &chunk)
-{
-	return testNISHeader(chunk, "NISPACK\x00");
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -83,26 +58,26 @@ bool ArchiveNISPack::load(FileChunk &chunk)
 {
 	struct packed NISPackHeader
 	{
-		char    magic[8];
-		quint32 dummy;
-		quint32 numFiles;
-	};
+		char     magic[8];
+		uint32le dummy;
+		uint32le numFiles;
+	} header;
 
 	struct packed NISPackFile
 	{
-		char    name[32];
-		quint32 offset;
-		quint32 size;
-		quint32 dummy;
+		char     name[32];
+		uint32le offset;
+		uint32le size;
+		uint32le dummy;
 	};
 
-	return loadNISArchive<NISPackHeader, NISPackFile>(chunk);
-}
+	chunk.readStruct(&header);
+	if (!std::memcmp(header.magic, "NISPACK\0", 8))
+	{
+		return loadNISArchive<NISPackFile>(chunk, header.numFiles);
+	}
 
-//-----------------------------------------------------------------------------
-bool ArchiveDSARC::test(FileChunk &chunk)
-{
-	return testNISHeader(chunk, "DSARC FL");
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -110,17 +85,97 @@ bool ArchiveDSARC::load(FileChunk &chunk)
 {
 	struct packed DSARCHeader
 	{
-		char    magic[8];
-		quint32 numFiles;
-		quint32 dummy;
-	};
+		char     magic[8];
+		uint32le numFiles;
+		uint32le dummy;
+	} header;
 
 	struct packed DSARCFile
 	{
-		char    name[40];
-		quint32 size;
-		quint32 offset;
+		char     name[40];
+		uint32le size;
+		uint32le offset;
 	};
 
-	return loadNISArchive<DSARCHeader, DSARCFile>(chunk);
+	chunk.readStruct(&header);
+	if (!std::memcmp(header.magic, "DSARC FL", 8))
+	{
+		return loadNISArchive<DSARCFile>(chunk, header.numFiles);
+	}
+	else if (!std::memcmp(header.magic, "DSARCIDX", 8))
+	{
+		// Eventually when rewriting these, we'll probably care about the file #s here
+		// but just skip them for now
+		chunk.seek(chunk.pos() + 2 * ((header.numFiles + 1) & ~1));
+
+		return loadNISArchive<DSARCFile>(chunk, header.numFiles);
+	}
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+bool ArchiveNISPS2::load(FileChunk &chunk)
+{
+	// Load a Disgaea 1/2/etc. PS2 archive (DATA.DAT + SECTOR.H)
+	// Assumes that DATA.DAT is not inside another archive (which it should never be)
+
+	if (!chunk.name().endsWith("/DATA.DAT"))
+	{
+		return false;
+	}
+
+	QDir dir = QFileInfo(chunk.name()).dir();
+	QFile sector(dir.filePath("SECTOR.H"));
+	if (!sector.open(QFile::ReadOnly))
+	{
+		return false;
+	}
+
+	struct packed PS2File
+	{
+		char     name[32];
+		uint32le offset;
+		uint32le size;
+	} file;
+
+	while (!sector.atEnd())
+	{
+		sector.read(reinterpret_cast<char*>(&file), sizeof(file));
+		file.name[sizeof(file.name) - 1] = '\0';
+
+		if (!file.name[0])
+		{
+			break;
+		}
+
+		if (!chunk.makeChunk(file.name, file.offset * 2048, file.size))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+bool ArchiveLZS::load(FileChunk &)
+{
+	// https://disgaea.rustedlogic.net/LZS_format
+
+	struct packed LZSHeader
+	{
+		char     magic[4];
+		uint32le packedSize;
+		uint32le unpackedSize;
+		uint32le marker;
+	} header;
+
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+bool ArchiveLZS::loadRaw(FileChunk &)
+{
+	return false;
 }

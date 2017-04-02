@@ -5,20 +5,28 @@
 
 namespace ArchivePSPFS
 {
-	bool test(FileChunk&);
 	bool load(FileChunk&);
 }
 
 namespace ArchiveNISPack
 {
-	bool test(FileChunk&);
 	bool load(FileChunk&);
 }
 
 namespace ArchiveDSARC
 {
-	bool test(FileChunk&);
 	bool load(FileChunk&);
+}
+
+namespace ArchiveNISPS2
+{
+	bool load(FileChunk&);
+}
+
+namespace ArchiveLZS
+{
+	bool load(FileChunk&);
+	bool loadRaw(FileChunk&);
 }
 
 #endif // ARCHIVENIS_H

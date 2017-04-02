@@ -15,14 +15,14 @@ struct FormatSpec
 		Unknown,
 		Archive,
 		Image,
+		PackedFile,
 	};
 	const int m_type;
 
-	FormatFunc test;
 	FormatFunc load;
 
-	FormatSpec(const char* name = "Unknown", int type = Unknown, FormatFunc test = 0, FormatFunc load = 0);
-	static const FormatSpec* match(FileChunk& device);
+	FormatSpec(const char* name = "Unknown", int type = Unknown, FormatFunc load = 0);
+	static const FormatSpec* match(FileChunk& chunk);
 };
 
 #endif // FORMATSPEC_H

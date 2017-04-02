@@ -39,6 +39,8 @@ public:
 		return m_name;
 	}
 
+	QString fullPath() const;
+
 	inline int numChunks() const
 	{
 		return m_children.size();
@@ -76,6 +78,12 @@ public:
 		// TODO: make sure the chunk supports the type of data being passed in
 		m_value.setValue<T>(value);
 		return true;
+	}
+
+	template<class T>
+	qint64 readStruct(T* data)
+	{
+		return read(reinterpret_cast<char*>(data), sizeof(T));
 	}
 
 	template<typename T>

@@ -16,6 +16,7 @@ HEADERS  += MainWindow.h \
     FileChunk.h \
     FormatSpec.h \
     formats/ArchiveNIS.h \
-    FileChunkModel.h
+    FileChunkModel.h \
+    Endianness.h
 
 FORMS    += MainWindow.ui
