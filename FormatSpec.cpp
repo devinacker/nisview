@@ -3,6 +3,7 @@
 
 #include "formats/ArchiveNIS.h"
 #include "formats/CompressNIS.h"
+#include "formats/ImageNIS.h"
 
 //-----------------------------------------------------------------------------
 static bool defaultFunc(FileChunk&)
@@ -21,13 +22,15 @@ static QVector<FormatSpec> formats =
 	FormatSpec("DSARC archive", FormatSpec::Archive, ArchiveDSARC::load),
 	FormatSpec("NIS PS2 archive", FormatSpec::Archive, NISArchivePS2::load),
 	FormatSpec("NIS generic archive", FormatSpec::Archive, NISArchiveGeneric::load),
+	FormatSpec("NIS generic archive (indexed)", FormatSpec::Archive, NISArchiveGeneric::loadIndexed),
+	FormatSpec("NIS map textures", FormatSpec::Archive, NISArchiveTexture::load),
 
 	// Compression formats
 	FormatSpec("NIS LZS packed", FormatSpec::PackedFile, NISCompressLZS::load),
-	FormatSpec("IMY chunk", FormatSpec::PackedFile, 0), // TODO
+	FormatSpec("IMY chunk", FormatSpec::PackedFile, NISCompressIMY::load),
 
 	// Image formats
-	// TODO
+	FormatSpec("TX2 image", FormatSpec::Image, ImageTX2::load),
 
 	// Other formats
 	// TODO

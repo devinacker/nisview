@@ -1,4 +1,5 @@
 #include "formats/ArchiveNIS.h"
+#include "formats/ImageNIS.h"
 #include "Endianness.h"
 #include <cstring>
 
@@ -160,13 +161,13 @@ bool NISArchivePS2::load(FileChunk &chunk)
 //-----------------------------------------------------------------------------
 bool NISArchiveGeneric::load(FileChunk &chunk)
 {
-	struct packed LZSRawHeader
+	struct packed GenericHeader
 	{
 		uint32le numFiles;
 		uint32le dummy[3];
 	} header;
 
-	struct packed LZSRawFile
+	struct packed GenericFile
 	{
 		uint32le endOffset;
 		char     name[28];
@@ -208,6 +209,96 @@ bool NISArchiveGeneric::load(FileChunk &chunk)
 			return false;
 		}
 		lastOffset = file.endOffset;
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+bool NISArchiveGeneric::loadIndexed(FileChunk &chunk)
+{
+	struct packed GenericHeader
+	{
+		uint32le numFiles;
+		uint32le unknown;
+	} header;
+
+	chunk.readStruct(&header);
+	// enforce a reasonable(?) limit on number of files to avoid false positives
+	if (header.numFiles == 0 || header.numFiles >= 1<<16
+			|| header.unknown != 0x20000)
+	{
+		return false;
+	}
+
+	for (uint i = 0; i < header.numFiles; i++)
+	{
+		chunk.seek(4*i + sizeof(header));
+
+		uint offset = chunk.readLE<quint32>();
+		int size = -1;
+		if (i < header.numFiles - 1)
+		{
+			size = chunk.readLE<quint32>() - offset;
+		}
+
+		if (!chunk.makeChunk(QString::number(i), offset, size))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+bool NISArchiveTexture::load(FileChunk &chunk)
+{
+	struct TexHeader
+	{
+		uint32le numFiles;
+		uint32le unknown;
+		uint32le padding[2];
+	} header;
+
+	chunk.readStruct(&header);
+
+	if (header.numFiles == 0 || header.numFiles >= 0x10000
+			|| header.padding[0] || header.padding[1])
+	{
+		return false;
+	}
+
+	quint64 offset = (16 * header.numFiles) + sizeof(header);
+	for (uint i = 0; i < header.numFiles; i++)
+	{
+		char nameBuf[16];
+		chunk.seek((16 * i) + sizeof(header));
+		chunk.read(nameBuf, 16);
+		QString name = nameBuf; // assume null-terminated?
+
+		// should (probably) contain tx2 files only
+		// (at least i've only encountered these so far)
+		if (!name.endsWith(".tx2", Qt::CaseInsensitive))
+		{
+			return false;
+		}
+
+		chunk.makeChunk(name, 0, 0);
+		/* TODO
+		chunk.seek(offset);
+		qint64 size = ImageTX2::size(chunk);
+		if (size <= 0)
+		{
+			return false;
+		}
+		if (!chunk.makeChunk(name, offset, size))
+		{
+			return false;
+		}
+
+		offset += size;
+		*/
 	}
 
 	return true;

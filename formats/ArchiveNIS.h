@@ -26,6 +26,12 @@ namespace NISArchivePS2
 namespace NISArchiveGeneric
 {
 	bool load(FileChunk&);
+	bool loadIndexed(FileChunk&);
+}
+
+namespace NISArchiveTexture
+{
+	bool load(FileChunk&);
 }
 
 #endif // ARCHIVENIS_H

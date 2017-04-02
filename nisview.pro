@@ -11,7 +11,8 @@ SOURCES += main.cpp\
     FormatSpec.cpp \
     formats/ArchiveNIS.cpp \
     FileChunkModel.cpp \
-    formats/CompressNIS.cpp
+    formats/CompressNIS.cpp \
+    formats/ImageNIS.cpp
 
 HEADERS  += MainWindow.h \
     FileChunk.h \
@@ -19,6 +20,7 @@ HEADERS  += MainWindow.h \
     formats/ArchiveNIS.h \
     FileChunkModel.h \
     Endianness.h \
-    formats/CompressNIS.h
+    formats/CompressNIS.h \
+    formats/ImageNIS.h
 
 FORMS    += MainWindow.ui

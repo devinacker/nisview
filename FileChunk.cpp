@@ -18,8 +18,6 @@ FileChunk::FileChunk(QIODevice *parent, const QString& name, qint64 offset, qint
 		m_size = parent->size() - offset;
 	}
 
-	qDebug() << this->fullPath();
-
 	loadChunks();
 }
 
@@ -32,8 +30,6 @@ FileChunk::FileChunk(QIODevice *parent, const QString& name, const QByteArray& d
 	, m_size(data.size())
 {
 	this->setValue(data);
-
-	qDebug() << this->fullPath();
 
 	loadChunks();
 }

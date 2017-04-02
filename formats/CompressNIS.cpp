@@ -73,5 +73,93 @@ bool NISCompressLZS::load(FileChunk &chunk)
 
 	// create a single unnamed chunk representing the decompressed contents
 	// (in case this contains something other than the start.dat-style archive)
-	return chunk.makeChunk(QObject::tr("(decompressed data)"), data);
+	return chunk.makeChunk("0", data);
+}
+
+//-----------------------------------------------------------------------------
+bool NISCompressIMY::load(FileChunk &chunk)
+{
+	// https://disgaea.rustedlogic.net/IMY_format
+
+	struct packed IMYHeader
+	{
+		char     magic[4];
+		uint16le unknown2;
+		uint16le unknown3;
+		uint16le offset;
+		uint8    type;
+		uint8    unknown6;
+		uint16le unknown7;
+		uint16le unknown8;
+		uint32le padding[4];
+		uint16le numInfoBytes;
+	} header;
+
+	chunk.readStruct(&header);
+	if (std::memcmp(header.magic, "IMY\0", 4)
+			|| header.type != 0x10)
+	{
+		return false;
+	}
+
+	const int lut[4] =
+	{
+		2,
+		header.offset,
+		header.offset + 2,
+		header.offset - 2
+	};
+
+	QByteArray data;
+	data.reserve(header.offset * header.unknown7); // ?
+
+	QByteArray info;
+	info.resize(header.numInfoBytes);
+	chunk.read(info.data(), header.numInfoBytes);
+
+	QByteArray src = chunk.readAll();
+
+	int dataOffset = 0;
+	for (auto byte : info)
+	{
+		if (data.size() == header.offset * header.unknown7)
+			break;
+
+		if ((byte & 0xc0) == 0xc0)
+		{
+			// copy from output
+			int index = (byte >> 4) & 3;
+			int size = (byte & 0xf) + 1;
+
+			for (int i = 0; i < size; i++)
+			{
+				int from = data.size() - lut[index];
+				if (from < 0 || lut[index] < 0)
+					return false;
+
+				data.append(data[from]);
+				data.append(data[from+1]);
+			}
+		}
+		else if (byte & 0xF0)
+		{
+			// copy from previous input
+			int from = 2 * (byte - 16) + 2;
+			if (from > dataOffset)
+				return false;
+			data.append(src[dataOffset - from]);
+			data.append(src[dataOffset - from + 1]);
+		}
+		else
+		{
+			// read uncompressed data from input
+			int size = 2 * (byte + 1);
+			if (dataOffset + size > src.size())
+				return false;
+			data.append(src.data() + dataOffset, size);
+			dataOffset += size;
+		}
+	}
+
+	return chunk.makeChunk("0", data);
 }

@@ -3,32 +3,34 @@
 
 #include <QtEndian>
 
-template<typename T, bool bigEndian = false>
+template<typename T, bool big = false>
 struct Endian
 {
 	char m_val[sizeof(T)];
 
-public:
-	T& operator = (const T& val)
+	Endian<T, big>& operator = (const T& val)
 	{
-		if (bigEndian)
+		if (big)
 			qToBigEndian(val, m_val);
 		else
 			qToLittleEndian(val, m_val);
 
-		return val;
+		return *this;
 	}
 
 	operator T() const
 	{
 		T val = *reinterpret_cast<const T*>(m_val);
 
-		if (bigEndian)
+		if (big)
 			return qFromBigEndian(val);
 		else
 			return qFromLittleEndian(val);
 	}
 };
+
+typedef qint8  int8;
+typedef quint8 uint8;
 
 typedef Endian<qint16>  int16le;
 typedef Endian<quint16> uint16le;

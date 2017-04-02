@@ -8,5 +8,10 @@ namespace NISCompressLZS
 	bool load(FileChunk&);
 }
 
+namespace NISCompressIMY
+{
+	bool load(FileChunk&);
+}
+
 #endif // COMPRESSNIS_H
 
