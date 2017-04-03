@@ -6,26 +6,24 @@
 template<typename T, bool big = false>
 struct Endian
 {
-	char m_val[sizeof(T)];
+	T m_val;
 
 	Endian<T, big>& operator = (const T& val)
 	{
 		if (big)
-			qToBigEndian(val, m_val);
+			m_val = qToBigEndian(val);
 		else
-			qToLittleEndian(val, m_val);
+			m_val = qToLittleEndian(val);
 
 		return *this;
 	}
 
 	operator T() const
 	{
-		T val = *reinterpret_cast<const T*>(m_val);
-
 		if (big)
-			return qFromBigEndian(val);
+			return qFromBigEndian(m_val);
 		else
-			return qFromLittleEndian(val);
+			return qFromLittleEndian(m_val);
 	}
 };
 
