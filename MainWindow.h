@@ -3,10 +3,10 @@
 
 #include <QMainWindow>
 #include <QFile>
-
 #include <QString>
 
-class FileChunk;
+#include "FileChunk.h"
+
 class FileChunkModel;
 
 namespace Ui {
@@ -26,6 +26,8 @@ private slots:
 	void saveChunkToFile();
 
 	void chunkContextMenu(const QPoint&);
+	void displayChunk(const QModelIndex&);
+	void closeTab(int);
 
 private:
 	Ui::MainWindow *ui;
@@ -34,6 +36,7 @@ private:
 	QFile m_file;
 	FileChunk *m_pChunks;
 	FileChunkModel *m_pChunkModel;
+	QMap<FileChunk*, int> m_openTabs;
 };
 
 #endif // MAINWINDOW_H

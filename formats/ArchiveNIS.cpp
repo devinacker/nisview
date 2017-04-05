@@ -28,79 +28,97 @@ static bool loadNISArchive(FileChunk &chunk, uint numFiles)
 }
 
 //-----------------------------------------------------------------------------
-bool ArchivePSPFS::load(FileChunk &chunk)
+namespace ArchivePSPFS
 {
-	struct packed PSPFSHeader
+	struct packed Header
 	{
 		char     magic[8];
 		uint32le numFiles;
 		uint32le dummy;
-	} header;
+	};
 
-	struct packed PSPFSFile
+	struct packed File
 	{
 		char     name[44];
 		uint32le size;
 		uint32le offset;
 	};
+}
+
+//-----------------------------------------------------------------------------
+bool ArchivePSPFS::load(FileChunk &chunk)
+{
+	Header header;
 
 	chunk.readStruct(&header);
 	if (!std::memcmp(header.magic, "PSPFS_V1", 8))
 	{
-		return loadNISArchive<PSPFSFile>(chunk, header.numFiles);
+		return loadNISArchive<File>(chunk, header.numFiles);
 	}
 
 	return false;
 }
 
 //-----------------------------------------------------------------------------
-bool ArchiveNISPack::load(FileChunk &chunk)
+namespace ArchiveNISPack
 {
-	struct packed NISPackHeader
+	struct packed Header
 	{
 		char     magic[8];
 		uint32le dummy;
 		uint32le numFiles;
-	} header;
+	};
 
-	struct packed NISPackFile
+	struct packed File
 	{
 		char     name[32];
 		uint32le offset;
 		uint32le size;
 		uint32le dummy;
 	};
+}
+
+//-----------------------------------------------------------------------------
+bool ArchiveNISPack::load(FileChunk &chunk)
+{
+	Header header;
 
 	chunk.readStruct(&header);
 	if (!std::memcmp(header.magic, "NISPACK\0", 8))
 	{
-		return loadNISArchive<NISPackFile>(chunk, header.numFiles);
+		return loadNISArchive<File>(chunk, header.numFiles);
 	}
 
 	return false;
 }
 
 //-----------------------------------------------------------------------------
-bool ArchiveDSARC::load(FileChunk &chunk)
+namespace ArchiveDSARC
 {
-	struct packed DSARCHeader
+	struct packed Header
 	{
 		char     magic[8];
 		uint32le numFiles;
 		uint32le dummy;
-	} header;
+	};
 
-	struct packed DSARCFile
+	struct packed File
 	{
 		char     name[40];
 		uint32le size;
 		uint32le offset;
 	};
+}
+
+//-----------------------------------------------------------------------------
+bool ArchiveDSARC::load(FileChunk &chunk)
+{
+	Header header;
 
 	chunk.readStruct(&header);
 	if (!std::memcmp(header.magic, "DSARC FL", 8))
 	{
-		return loadNISArchive<DSARCFile>(chunk, header.numFiles);
+		return loadNISArchive<File>(chunk, header.numFiles);
 	}
 	else if (!std::memcmp(header.magic, "DSARCIDX", 8))
 	{
@@ -108,10 +126,21 @@ bool ArchiveDSARC::load(FileChunk &chunk)
 		// but just skip them for now
 		chunk.seek(chunk.pos() + 2 * ((header.numFiles + 1) & ~1));
 
-		return loadNISArchive<DSARCFile>(chunk, header.numFiles);
+		return loadNISArchive<File>(chunk, header.numFiles);
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+namespace NISArchivePS2
+{
+	struct packed File
+	{
+		char     name[32];
+		uint32le offset;
+		uint32le size;
+	};
 }
 
 //-----------------------------------------------------------------------------
@@ -132,15 +161,10 @@ bool NISArchivePS2::load(FileChunk &chunk)
 		return false;
 	}
 
-	struct packed PS2File
-	{
-		char     name[32];
-		uint32le offset;
-		uint32le size;
-	} file;
-
 	while (!sector.atEnd())
 	{
+		File file;
+
 		sector.read(reinterpret_cast<char*>(&file), sizeof(file));
 		file.name[sizeof(file.name) - 1] = '\0';
 
@@ -159,20 +183,31 @@ bool NISArchivePS2::load(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool NISArchiveGeneric::load(FileChunk &chunk)
+namespace NISArchiveGeneric
 {
-	struct packed GenericHeader
+	struct packed Header
 	{
 		uint32le numFiles;
 		uint32le dummy[3];
-	} header;
+	};
 
-	struct packed GenericFile
+	struct packed File
 	{
 		uint32le endOffset;
 		char     name[28];
-	} file;
+	};
 
+	struct packed IndexedHeader
+	{
+		uint32le numFiles;
+		uint32le unknown;
+	};
+}
+
+//-----------------------------------------------------------------------------
+bool NISArchiveGeneric::load(FileChunk &chunk)
+{
+	Header header;
 	chunk.readStruct(&header);
 	// enforce a reasonable(?) limit on number of files to avoid false positives
 	if (header.numFiles == 0 || header.numFiles >= 1<<16
@@ -181,10 +216,11 @@ bool NISArchiveGeneric::load(FileChunk &chunk)
 		return false;
 	}
 
-	uint startOffset = sizeof(header) + header.numFiles * sizeof(file);
+	uint startOffset = sizeof(header) + header.numFiles * sizeof(File);
 	uint lastOffset = 0;
 	for (uint i = 0; i < header.numFiles; i++)
 	{
+		File file;
 		chunk.readStruct(&file);
 		file.name[sizeof(file.name) - 1] = '\0';
 
@@ -217,12 +253,7 @@ bool NISArchiveGeneric::load(FileChunk &chunk)
 //-----------------------------------------------------------------------------
 bool NISArchiveGeneric::loadIndexed(FileChunk &chunk)
 {
-	struct packed GenericHeader
-	{
-		uint32le numFiles;
-		uint32le unknown;
-	} header;
-
+	IndexedHeader header;
 	chunk.readStruct(&header);
 	// enforce a reasonable(?) limit on number of files to avoid false positives
 	if (header.numFiles == 0 || header.numFiles >= 1<<16
@@ -252,19 +283,32 @@ bool NISArchiveGeneric::loadIndexed(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool NISArchiveTexture::load(FileChunk &chunk)
+namespace NISArchiveTexture
 {
-	struct TexHeader
+	struct packed Header
 	{
 		uint32le numFiles;
-		uint32le unknown;
-		uint32le padding[2];
-	} header;
+		uint32le unknown1; // texture format? (probably always <256)
+		uint32le unknown2; // always 0?
+		uint32le unknown3; // either 0 or between numFiles and unknown1?
+						   // (probably always <256)
+	};
 
+	struct packed File
+	{
+		uint32le size;
+		uint32le padding[3];
+	};
+}
+
+//-----------------------------------------------------------------------------
+bool NISArchiveTexture::load(FileChunk &chunk)
+{
+	Header header;
 	chunk.readStruct(&header);
 
-	if (header.numFiles == 0 || header.numFiles >= 0x10000
-			|| header.padding[0] || header.padding[1])
+	if (header.numFiles == 0 || header.numFiles >= 1<<8
+			|| header.unknown1 >= 1<<8 || header.unknown3 >= 1<<8)
 	{
 		return false;
 	}
@@ -272,6 +316,8 @@ bool NISArchiveTexture::load(FileChunk &chunk)
 	quint64 offset = (16 * header.numFiles) + sizeof(header);
 	for (uint i = 0; i < header.numFiles; i++)
 	{
+		File file;
+
 		char nameBuf[16];
 		chunk.seek((16 * i) + sizeof(header));
 		chunk.read(nameBuf, 16);
@@ -284,21 +330,14 @@ bool NISArchiveTexture::load(FileChunk &chunk)
 			return false;
 		}
 
-		chunk.makeChunk(name, 0, 0);
-		/* TODO
 		chunk.seek(offset);
-		qint64 size = ImageTX2::size(chunk);
-		if (size <= 0)
-		{
-			return false;
-		}
-		if (!chunk.makeChunk(name, offset, size))
+		chunk.readStruct(&file);
+		if (!chunk.makeChunk(name, chunk.pos(), file.size))
 		{
 			return false;
 		}
 
-		offset += size;
-		*/
+		offset += file.size + sizeof(file);
 	}
 
 	return true;

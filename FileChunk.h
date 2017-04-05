@@ -66,10 +66,8 @@ public:
 		return -1;
 	}
 
-	inline QString type() const
-	{
-		return m_type;
-	}
+	QString format() const;
+	int type() const;
 
 	template<typename T>
 	T value() const
@@ -154,8 +152,6 @@ private:
 	QVariant m_value;
 
 	QString m_name;
-	QString m_type;
-
 	QIODevice *m_pParent;
 	qint64 m_offset;
 	qint64 m_size;

@@ -7,18 +7,23 @@
 #define packed __attribute__((__packed__))
 
 //-----------------------------------------------------------------------------
-bool NISCompressLZS::load(FileChunk &chunk)
+namespace NISCompressLZS
 {
-	// https://disgaea.rustedlogic.net/LZS_format
-
-	struct packed LZSHeader
+	struct packed Header
 	{
 		char     magic[4];
 		uint32le unpackedSize;
 		uint32le packedSize;
 		uint32le marker;
-	} header;
+	};
+}
 
+//-----------------------------------------------------------------------------
+bool NISCompressLZS::load(FileChunk &chunk)
+{
+	// https://disgaea.rustedlogic.net/LZS_format
+
+	Header header;
 	chunk.readStruct(&header);
 	if (std::memcmp(header.magic, "dat\0", 4)
 			|| header.unpackedSize < header.packedSize
@@ -77,11 +82,9 @@ bool NISCompressLZS::load(FileChunk &chunk)
 }
 
 //-----------------------------------------------------------------------------
-bool NISCompressIMY::load(FileChunk &chunk)
+namespace NISCompressIMY
 {
-	// https://disgaea.rustedlogic.net/IMY_format
-
-	struct packed IMYHeader
+	struct packed Header
 	{
 		char     magic[4];
 		uint16le unknown2;
@@ -93,8 +96,16 @@ bool NISCompressIMY::load(FileChunk &chunk)
 		uint16le unknown8;
 		uint32le padding[4];
 		uint16le numInfoBytes;
-	} header;
+	};
+}
 
+//-----------------------------------------------------------------------------
+bool NISCompressIMY::load(FileChunk &chunk)
+{
+	// https://disgaea.rustedlogic.net/IMY_format
+	// TODO: this is still kinda messed up (see some Phantom Brave map textures)
+
+	Header header;
 	chunk.readStruct(&header);
 	if (std::memcmp(header.magic, "IMY\0", 4)
 			|| header.type != 0x10)

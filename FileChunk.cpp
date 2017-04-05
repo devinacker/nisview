@@ -45,7 +45,6 @@ void FileChunk::loadChunks()
 
 		qint64 oldpos = m_pParent->pos();
 		m_pFormat = FormatSpec::match(*this);
-		m_type = m_pFormat->m_name;
 		m_pParent->seek(oldpos);
 	}
 }
@@ -89,9 +88,9 @@ FileChunk* FileChunk::getChunk(const QString &name) const
 
 	for (FileChunk* child : m_children)
 	{
-		if (child->name() == myChildName)
+		if (child->name().compare(myChildName, Qt::CaseInsensitive) == 0)
 		{
-			if (subChildName.isEmpty())
+			if (!subChildName.isEmpty())
 			{
 				return child->getChunk(subChildName);
 			}
@@ -126,6 +125,18 @@ QString FileChunk::fullPath() const
 	}
 
 	return path + m_name;
+}
+
+//-----------------------------------------------------------------------------
+QString FileChunk::format() const
+{
+	return m_pFormat->m_name;
+}
+
+//-----------------------------------------------------------------------------
+int FileChunk::type() const
+{
+	return m_pFormat->m_type;
 }
 
 //-----------------------------------------------------------------------------

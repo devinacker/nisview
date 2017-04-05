@@ -67,7 +67,7 @@ QVariant FileChunkModel::data(const QModelIndex &index, int role) const
 
 	case ColumnType:
 		if (role == Qt::DisplayRole)
-			return chunk->type();
+			return chunk->format();
 		break;
 
 	case ColumnSize:

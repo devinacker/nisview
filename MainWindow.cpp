@@ -1,11 +1,13 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 
-#include <FileChunk.h>
-#include <FileChunkModel.h>
+#include "FormatSpec.h"
+#include "FileChunk.h"
+#include "FileChunkModel.h"
 
 #include <QFileDialog>
 #include <QFile>
+#include <QLabel>
 #include <QMessageBox>
 
 //-----------------------------------------------------------------------------
@@ -25,6 +27,9 @@ MainWindow::MainWindow(QWidget *parent)
 	connect(ui->actionOpen_Archive, SIGNAL(triggered(bool)), this, SLOT(openArchive()));
 
 	connect(ui->actionSave_Chunk_As, SIGNAL(triggered(bool)), this, SLOT(saveChunkToFile()));
+
+	connect(ui->treeView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(displayChunk(QModelIndex)));
+	connect(ui->tabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
 }
 
 //-----------------------------------------------------------------------------
@@ -98,4 +103,51 @@ void MainWindow::saveChunkToFile()
 			break;
 		}
 	}
+}
+
+//-----------------------------------------------------------------------------
+void MainWindow::displayChunk(const QModelIndex &index)
+{
+	FileChunk *chunk = reinterpret_cast<FileChunk*>(index.internalPointer());
+	if (!chunk) return;
+
+	int tabIndex = -1;
+
+	if (m_openTabs.contains(chunk))
+	{
+		tabIndex = m_openTabs[chunk];
+	}
+	// Just display image chunks for now, as a test.
+	// More interesting stuff comes later...
+	else switch (chunk->type())
+	{
+	case FormatSpec::Image:
+	{
+		QLabel *label = new QLabel();
+		label->setPixmap(QPixmap::fromImage(chunk->value<QImage>()));
+
+		tabIndex = ui->tabWidget->addTab(label, chunk->name());
+	}
+		break;
+
+	default:
+		break;
+	}
+
+	if (tabIndex >= 0)
+	{
+		ui->tabWidget->setCurrentIndex(tabIndex);
+
+		m_openTabs[chunk] = tabIndex;
+	}
+}
+
+//-----------------------------------------------------------------------------
+void MainWindow::closeTab(int index)
+{
+	m_openTabs.remove(m_openTabs.key(index));
+
+	QWidget *widget = ui->tabWidget->widget(index);
+	ui->tabWidget->removeTab(index);
+	delete widget;
 }
